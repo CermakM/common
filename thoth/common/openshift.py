@@ -2617,8 +2617,11 @@ class OpenShift:
             raise ValueError("One of `name` or `label_selector` has to be provided.")
         if name and label_selector:
             raise ValueError("Either `name` or `label_selector` has to be provided.")
-        try:
-            if name:
+
+        wf: Dict[str, Any]
+
+        if name:
+            try:
                 response = self.ocp_client.resources.get(
                     api_version="argoproj.io/v1alpha1", kind="Workflow", name="workflows"
                 ).get(
@@ -2629,7 +2632,15 @@ class OpenShift:
                     name,
                     response.to_dict(),
                 )
-            elif label_selector:
+            except OpenShiftNotFoundError as exc:
+                raise NotFoundException(
+                    f"The given Workflow {name} could not be found"
+                ) from exc
+
+            wf = response.to_dict()
+
+        elif label_selector:
+            try:
                 response = self.ocp_client.resources.get(
                     api_version="argoproj.io/v1alpha1", kind="Workflow", name="workflows"
                 ).get(
@@ -2640,14 +2651,15 @@ class OpenShift:
                     label_selector,
                     response.to_dict(),
                 )
-        except OpenShiftNotFoundError as exc:
-            raise NotFoundException(
-                f"The given Workflow containing label {label_selector} could not be found"
-            ) from exc
+            except OpenShiftNotFoundError as exc:
+                raise NotFoundException(
+                    f"The given Workflow containing label {label_selector} could not be found"
+                ) from exc
 
-        self._raise_on_invalid_response_size(response)
+            self._raise_on_invalid_response_size(response)
 
-        wf: Dict[str, Any] = response.to_dict()["items"][0]
+            wf = response.to_dict()["items"][0]
+
         return wf
 
     def get_workflow_status(
